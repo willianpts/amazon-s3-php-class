@@ -964,7 +964,21 @@ class S3
 	*/
 	public static function getAuthenticatedURL($bucket, $uri, $lifetime, $hostBucket = false, $https = false)
 	{
-		$expires = time() + $lifetime;
+		/**
+		 * Do a check for any short lifetimes, and if found hit the S3 server with a HEAD
+		 * request. It'll error, but quickly, with a timestamp returned. Use that to figure
+		 * out the difference with local time (it will vary as S3 servers rotate) and then 
+		 * add the difference to the lifetime.
+		 * 
+		 * Intended for quick unlock/redirect scripts
+		*/
+		$timediff = 0;
+		if ($lifetime < 180) {
+			$rest = new S3Request('HEAD'); // bad request in s3's eyes, returns valid timestamp
+			$rest = $rest->getResponse();
+			$timediff = ($rest->headers['server-time'] - time()) + 5; // sync, with 5 seconds added for safety
+		}
+		$expires = time() + $timediff + $lifetime;
 		$uri = str_replace('%2F', '/', rawurlencode($uri)); // URI should be encoded (thanks Sean O'Dea)
 		return sprintf(($https ? 'https' : 'http').'://%s/%s?AWSAccessKeyId=%s&Expires=%u&Signature=%s',
 		$hostBucket ? $bucket : $bucket.'.s3.amazonaws.com', $uri, self::$__accessKey, $expires,
@@ -1902,6 +1916,8 @@ final class S3Request
 				$this->response->headers['size'] = (int)$value;
 			elseif ($header == 'Content-Type')
 				$this->response->headers['type'] = $value;
+			elseif ($header == 'Date')
+				$this->response->headers['server-time'] = strtotime($value); // check for Date header, add it to response object as 'server-time' (to be used for sync)
 			elseif ($header == 'ETag')
 				$this->response->headers['hash'] = $value{0} == '"' ? substr($value, 1, -1) : $value;
 			elseif (preg_match('/^x-amz-meta-.*$/', $header))
