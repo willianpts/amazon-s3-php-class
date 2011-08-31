@@ -1805,7 +1805,7 @@ final class S3Request
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, false);
 		curl_setopt($curl, CURLOPT_WRITEFUNCTION, array(&$this, '__responseWriteCallback'));
 		curl_setopt($curl, CURLOPT_HEADERFUNCTION, array(&$this, '__responseHeaderCallback'));
-		curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
+		@curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true); //suppressing error "CURLOPT_FOLLOWLOCATION cannot be activated when safe_mode is enabled or an open_basedir is set"
 
 		// Request types
 		switch ($this->verb)
